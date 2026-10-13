@@ -16,7 +16,6 @@ index.html                 the dashboard (one self-contained page; loads d3 from
 data/nwl_extract.csv       county extract: one row per Year x Ownership x Ecoregion x Land Cover
 data/meta.json             source file, county, build date, year range (shown in the page footer)
 scripts/build_extract.py   rebuilds the two data files from CARB's workbook
-.nojekyll                  tells GitHub Pages to serve files as-is
 ```
 
 ## Viewing it locally
