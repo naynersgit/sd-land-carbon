@@ -76,6 +76,9 @@ h3 { font-size: var(--fs-body); font-weight: 500; margin: 0 0 4px; }
 svg text { fill: var(--muted); font-size: 12px; font-family: var(--font-body); font-variant-numeric: tabular-nums; }
 svg text.lbl { fill: var(--fg); }
 svg text.ev { font-size: 11px; }
+.base-ctl { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: var(--fs-cap); color: var(--muted); flex-wrap: wrap; }
+.base-ctl input { flex: 1 1 12rem; max-width: 22rem; accent-color: var(--fg); }
+.base-ctl output { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 4ch; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 10px; }
 .legend button { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: var(--fs-cap); color: var(--fg); background: none; border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
 .legend button[aria-pressed="false"] { opacity: .45; }
@@ -117,8 +120,9 @@ footer a { color: inherit; }
 
   <section class="grid">
     <div class="card wide" id="acreage-change">
-      <h2>Acreage change since <span class="yr-first">2001</span>, by land cover</h2>
-      <p class="note">Total area is fixed, so every gain is another cover type's loss. Shaded years mark the Cedar (2003) and Witch (2007) fires. The dashed line marks the 2011 jump that looks like a land-cover reclassification, not recovery. Click a land cover to hide or show it.</p>
+      <h2>Acreage change since <span id="base-label">2001</span>, by land cover</h2>
+      <p class="note">Total area is fixed, so every gain is another cover type's loss. Shaded years mark the Cedar (2003) and Witch (2007) fires. The dashed line marks the 2011 jump, which looks like a change in CARB's land-cover data rather than recovery. Drag the slider to change the base year. Click a land cover to hide or show it.</p>
+      <div class="base-ctl"><label for="f-base">Base year</label><input type="range" id="f-base" min="2001" max="2021" step="1" value="2001"><output id="base-out" for="f-base">2001</output></div>
       <div class="legend" id="legend"></div>
       <div class="chart c1" id="c1"></div>
     </div>
@@ -149,9 +153,7 @@ footer a { color: inherit; }
       <h2>Reading this data</h2>
       <ul>
         <li>Source: CARB 2025 Natural and Working Lands Carbon Inventory, aggregated data table. Carbon is metric tons of carbon (MT C), not CO2e. Multiply by 3.664 for CO2e.</li>
-        <li>The data is aggregated by year. It shows how much of each land cover there is, not which acres converted to what, so it can't support a transition (Sankey) view.</li>
-        <li>The 2011 shrubland/grassland reversal and the 2014 shifts in cropland and developed land happen in a single year. Treat them as breaks in the series, not real change.</li>
-        <li>Ownership filters let you see where change happened. The ownership acreage itself stays nearly constant across years.</li>
+        <li>The 2011 shrubland/grassland reversal and the 2014 shifts in cropland and developed land happen countywide in a single year, which is unlike real vegetation change. They most likely reflect a change in CARB's underlying land-cover data, so treat them as breaks in the series rather than actual change.</li>
       </ul>
     </div>
   </section>
@@ -169,11 +171,13 @@ footer a { color: inherit; }
   const EVENTS = [
     { y: 2003, label: 'Cedar fire', short: 'Cedar', kind: 'fire' },
     { y: 2007, label: 'Witch fire', short: 'Witch', kind: 'fire' },
-    { y: 2010.5, label: 'Reclassification', short: 'Reclass.', kind: 'break' },
+    { y: 2010.5, label: 'Data change', short: 'Data chg.', kind: 'break' },
   ];
   const f1 = d3.format(',.1f');
   const signed = (v) => (v > 0 ? '+' : '') + f1(v);
-  const state = { own: 'All', eco: 'All', hidden: new Set() };
+  const state = { own: 'All', eco: 'All', base: null, hidden: new Set() };
+  // Ecoregions left out of the filter list (still counted in county totals).
+  const HIDE_ECOREGIONS = ['Sonoran Colorado Desert Section'];
   let D = null; // derived data
   let FIRST = 2001, LAST = 2022;
 
@@ -201,7 +205,7 @@ footer a { color: inherit; }
       cover: coverRows,
       pool: [...pool.values()],
       owners: [...new Set(raw.map((r) => r.Ownership))].sort(),
-      ecos: [...new Set(raw.map((r) => r.Ecoregion))].sort(),
+      ecos: [...new Set(raw.map((r) => r.Ecoregion))].filter((e) => !HIDE_ECOREGIONS.includes(e)).sort(),
     };
   }
 
@@ -386,11 +390,13 @@ footer a { color: inherit; }
     } else take.textContent = 'No land in this selection.';
 
     // chart 1
+    const BASE = state.base ?? FIRST;
+    $('f-base').value = BASE; $('base-out').textContent = BASE; $('base-label').textContent = BASE;
     const rows = D.cover.filter((r) => r.own === own && r.eco === eco);
     const byCover = d3.group(rows, (r) => r.LandCover);
     const all = COVERS.filter((c) => byCover.has(c)).map((c) => {
       const ys = new Map(byCover.get(c).map((r) => [r.Year, r.Acreage]));
-      const base = ys.get(FIRST) || 0;
+      const base = ys.get(BASE) || 0;
       return { name: c, color: colorOf(c), values: d3.range(FIRST, LAST + 1).map((yr) => ({ x: yr, y: ((ys.get(yr) || 0) - base) / 1000 })) };
     }).filter((s) => s.values.some((v) => Math.abs(v.y) >= 0.05));
     $('legend').replaceChildren(...all.map((s) => {
@@ -430,7 +436,8 @@ footer a { color: inherit; }
   const fill = (sel, opts, allLabel) => sel.replaceChildren(new Option(allLabel, 'All'), ...opts.map((o) => new Option(o === 'UNDEFINED' ? 'Undefined' : o, o)));
   $('f-own').addEventListener('change', (e) => { state.own = e.target.value; render(); });
   $('f-eco').addEventListener('change', (e) => { state.eco = e.target.value; render(); });
-  $('f-reset').addEventListener('click', () => { state.own = 'All'; state.eco = 'All'; state.hidden.clear(); render(); });
+  $('f-reset').addEventListener('click', () => { state.own = 'All'; state.eco = 'All'; state.base = null; state.hidden.clear(); render(); });
+  $('f-base').addEventListener('input', (e) => { state.base = +e.target.value; render(); });
 
   let lastW = 0, timer = null;
   new ResizeObserver(() => {
@@ -456,6 +463,7 @@ footer a { color: inherit; }
     D = derive(raw);
     fill($('f-own'), D.owners, 'All ownership');
     fill($('f-eco'), D.ecos, 'All ecoregions');
+    $('f-base').min = FIRST; $('f-base').max = LAST - 1;
     render();
   }).catch((err) => {
     console.error(err);

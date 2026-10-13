@@ -4,7 +4,7 @@ An interactive dashboard of acreage and carbon change on natural and working lan
 
 It contains four views, each filterable by ownership and ecoregion:
 
-1. **Acreage change since 2001, by land cover.** The Cedar (2003) and Witch (2007) fire years are shaded, and the apparent 2011 reclassification is marked.
+1. **Acreage change since 2001, by land cover.** The Cedar (2003) and Witch (2007) fire years are shaded, and the apparent 2011 data change is marked.
 2. **Biomass and soil carbon over time**, in separate panels.
 3. **Total carbon by land cover**, first year compared with last year (dumbbell chart).
 4. **Carbon per acre by land cover** in the latest year.
@@ -16,6 +16,7 @@ index.html                 the dashboard (one self-contained page; loads d3 from
 data/nwl_extract.csv       county extract: one row per Year x Ownership x Ecoregion x Land Cover
 data/meta.json             source file, county, build date, year range (shown in the page footer)
 scripts/build_extract.py   rebuilds the two data files from CARB's workbook
+.nojekyll                  tells GitHub Pages to serve files as-is
 ```
 
 ## Viewing it locally
