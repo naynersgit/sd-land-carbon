@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>San Diego Land Carbon</title>
+<meta name="description" content="Acreage and carbon change on natural and working lands in San Diego County, from CARB's 2025 Natural and Working Lands Carbon Inventory.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: one column of cards on a quiet field; land-cover colors carry the meaning. */
+:root {
+  --bg: #f6f7f4; --panel: #ffffff; --fg: #1c2420; --muted: #5a655f; --border: #dde2da;
+  --grid: #eaede7; --axis: #aab3ad; --ref: #7d8781; --ok: #2c7a4b; --bad: #b0412c; --fire: #c2410c;
+  --pop: #ffffff; --shadow: 0 4px 16px rgba(20, 30, 25, .12);
+  --lc-shrub: #7a8f3a; --lc-grass: #c29a1c; --lc-forest: #2f6b3f; --lc-dev: #5b6b82;
+  --lc-crop: #b8662e; --lc-wet: #2a8c8c; --lc-other: #9a8878; --lc-water: #3b73b9;
+  --soil: #8a5a2b;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --fs-cap: 0.8125rem; --fs-body: 0.9375rem; --fs-h: 1.0625rem; --fs-title: 2rem;
+  --radius: 10px; --gap: 16px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111513; --panel: #19201c; --fg: #e4eae6; --muted: #98a39d; --border: #2b3430;
+    --grid: #222a26; --axis: #4d5752; --ref: #8d9792; --ok: #6cc08d; --bad: #e8826d; --fire: #f07a45;
+    --pop: #222a26; --shadow: 0 4px 16px rgba(0, 0, 0, .45);
+    --lc-shrub: #a3b85c; --lc-grass: #e0bd4a; --lc-forest: #5fa86f; --lc-dev: #8d9bb0;
+    --lc-crop: #d98a52; --lc-wet: #4fb5b3; --lc-other: #b9a898; --lc-water: #6aa0e0;
+    --soil: #c79060;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111513; --panel: #19201c; --fg: #e4eae6; --muted: #98a39d; --border: #2b3430;
+  --grid: #222a26; --axis: #4d5752; --ref: #8d9792; --ok: #6cc08d; --bad: #e8826d; --fire: #f07a45;
+  --pop: #222a26; --shadow: 0 4px 16px rgba(0, 0, 0, .45);
+  --lc-shrub: #a3b85c; --lc-grass: #e0bd4a; --lc-forest: #5fa86f; --lc-dev: #8d9bb0;
+  --lc-crop: #d98a52; --lc-wet: #4fb5b3; --lc-other: #b9a898; --lc-water: #6aa0e0;
+  --soil: #c79060;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); line-height: 1.5; }
+.wrap { max-width: 1180px; margin-inline: auto; padding-inline: 16px; padding-block: 28px 40px; display: flex; flex-direction: column; gap: 24px; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: var(--gap); }
+.head-text { flex: 1 1 28rem; min-width: 0; }
+.eyebrow { font-size: var(--fs-cap); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; margin: 0 0 4px; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: var(--fs-title); line-height: 1.15; margin: 0; text-wrap: balance; }
+.take { color: var(--muted); margin: 8px 0 0; max-width: 70ch; }
+.take .num { color: var(--fg); font-variant-numeric: tabular-nums; font-weight: 500; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-cap); color: var(--muted); min-width: 0; }
+select, .btn { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; max-width: 100%; }
+.btn { cursor: pointer; }
+select:focus-visible, .btn:focus-visible, .legend button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: var(--gap); }
+.tile, .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; min-width: 0; }
+.tile { display: flex; flex-direction: column; gap: 4px; }
+.tile .lab { font-size: var(--fs-cap); color: var(--muted); }
+.tile .val { font-family: var(--font-display); font-size: 1.875rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile .unit, .tile .chg { font-size: var(--fs-cap); color: var(--muted); font-variant-numeric: tabular-nums; }
+.up { color: var(--ok) !important; } .down { color: var(--bad) !important; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--gap); }
+.wide { grid-column: 1 / -1; }
+h2 { font-size: var(--fs-h); font-weight: 600; margin: 0; text-wrap: balance; }
+h3 { font-size: var(--fs-body); font-weight: 500; margin: 0 0 4px; }
+.note { font-size: var(--fs-cap); color: var(--muted); margin: 4px 0 14px; max-width: 75ch; }
+.chart { position: relative; width: 100%; }
+.c1 { min-height: 340px; } .c2 { min-height: 230px; } .c3, .c4 { min-height: 270px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 24px; }
+.pair > div { min-width: 0; }
+svg text { fill: var(--muted); font-size: 12px; font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+svg text.lbl { fill: var(--fg); }
+svg text.ev { font-size: 11px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-bottom: 10px; }
+.legend button { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: var(--fs-cap); color: var(--fg); background: none; border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+.legend button[aria-pressed="false"] { opacity: .45; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.key { display: flex; gap: 16px; font-size: var(--fs-cap); color: var(--muted); margin-bottom: 8px; }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.tip { position: absolute; pointer-events: none; background: var(--pop); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 6px 10px; font-size: var(--fs-cap); white-space: nowrap; z-index: 2; }
+.tip .hd { color: var(--muted); margin-bottom: 2px; }
+.tip .ln { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.tip .ln b { font-weight: 500; margin-left: auto; padding-left: 12px; }
+.status { display: flex; align-items: center; justify-content: center; min-height: inherit; color: var(--muted); font-size: var(--fs-cap); }
+.notes ul { margin: 10px 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; }
+footer { font-size: var(--fs-cap); color: var(--muted); }
+footer a { color: inherit; }
+@media (max-width: 480px) { :root { --fs-title: 1.6rem; } .tile .val { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <div class="head-text">
+      <p class="eyebrow">Natural and working lands</p>
+      <h1><span id="county-name">San Diego</span> County land carbon, <span class="yr-first">2001</span>–<span class="yr-last">2022</span></h1>
+      <p class="take" id="take">Loading data…</p>
+    </div>
+    <div class="filters">
+      <label for="f-own">Ownership<select id="f-own"><option value="All">All ownership</option></select></label>
+      <label for="f-eco">Ecoregion<select id="f-eco"><option value="All">All ecoregions</option></select></label>
+      <button type="button" class="btn" id="f-reset">Reset</button>
+    </div>
+  </header>
+
+  <section class="tiles" aria-label="Headline figures">
+    <div class="tile"><div class="lab">Total carbon, <span class="yr-last">2022</span></div><div><span class="val" data-k="Total">—</span> <span class="unit">million MT C</span></div><div class="chg"><span data-k="Total" data-chg="1">—</span> since <span class="yr-first">2001</span></div></div>
+    <div class="tile"><div class="lab">Biomass carbon, <span class="yr-last">2022</span></div><div><span class="val" data-k="Biomass">—</span> <span class="unit">million MT C</span></div><div class="chg"><span data-k="Biomass" data-chg="1">—</span> since <span class="yr-first">2001</span></div></div>
+    <div class="tile"><div class="lab">Soil carbon (0–30 cm), <span class="yr-last">2022</span></div><div><span class="val" data-k="Soil">—</span> <span class="unit">million MT C</span></div><div class="chg"><span data-k="Soil" data-chg="1">—</span> since <span class="yr-first">2001</span></div></div>
+    <div class="tile"><div class="lab">Land area in view</div><div><span class="val" data-k="Area">—</span> <span class="unit">thousand acres</span></div><div class="chg"><span data-k="Area" data-chg="1" data-neutral="1">—</span> since <span class="yr-first">2001</span></div></div>
+  </section>
+
+  <section class="grid">
+    <div class="card wide" id="acreage-change">
+      <h2>Acreage change since <span class="yr-first">2001</span>, by land cover</h2>
+      <p class="note">Total area is fixed, so every gain is another cover type's loss. Shaded years mark the Cedar (2003) and Witch (2007) fires. The dashed line marks the 2011 jump that looks like a land-cover reclassification, not recovery. Click a land cover to hide or show it.</p>
+      <div class="legend" id="legend"></div>
+      <div class="chart c1" id="c1"></div>
+    </div>
+
+    <div class="card wide" id="carbon-pools">
+      <h2>Biomass and soil carbon over time</h2>
+      <p class="note">Shown separately so year-to-year swings in soil carbon don't hide the fire signal in biomass. Both axes start at zero. CARB notes that some developed and cropland biomass years were imputed.</p>
+      <div class="pair">
+        <div><h3>Biomass carbon (live + litter)</h3><div class="chart c2" id="c2a"></div></div>
+        <div><h3>Soil carbon (0–30 cm)</h3><div class="chart c2" id="c2b"></div></div>
+      </div>
+    </div>
+
+    <div class="card" id="carbon-by-cover">
+      <h2>Total carbon by land cover, <span class="yr-first">2001</span> vs <span class="yr-last">2022</span></h2>
+      <p class="note">Million MT C. The number on the right is the net change.</p>
+      <div class="key"><span><span class="sw" style="background: var(--axis)"></span><span class="yr-first">2001</span></span><span><span class="sw" style="background: var(--fg)"></span><span class="yr-last">2022</span></span></div>
+      <div class="chart c3" id="c3"></div>
+    </div>
+
+    <div class="card" id="carbon-density">
+      <h2>Carbon per acre by land cover, <span class="yr-last">2022</span></h2>
+      <p class="note">MT C per acre (biomass + soil). This is why a small forest loss counts for more than its share of the area.</p>
+      <div class="chart c4" id="c4"></div>
+    </div>
+
+    <div class="card wide notes" id="notes">
+      <h2>Reading this data</h2>
+      <ul>
+        <li>Source: CARB 2025 Natural and Working Lands Carbon Inventory, aggregated data table. Carbon is metric tons of carbon (MT C), not CO2e. Multiply by 3.664 for CO2e.</li>
+        <li>The data is aggregated by year. It shows how much of each land cover there is, not which acres converted to what, so it can't support a transition (Sankey) view.</li>
+        <li>The 2011 shrubland/grassland reversal and the 2014 shifts in cropland and developed land happen in a single year. Treat them as breaks in the series, not real change.</li>
+        <li>Ownership filters let you see where change happened. The ownership acreage itself stays nearly constant across years.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer id="footer">Data: California Air Resources Board, <a href="https://ww2.arb.ca.gov/nwl-inventory" target="_blank" rel="noopener">Natural and Working Lands Inventory</a>.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+(() => {
+  const COVERS = ['Shrubland', 'Grassland', 'Forest Land', 'Developed Land', 'Cropland', 'Wetland', 'Other Land', 'Open Water'];
+  const COVER_VAR = { 'Shrubland': '--lc-shrub', 'Grassland': '--lc-grass', 'Forest Land': '--lc-forest', 'Developed Land': '--lc-dev', 'Cropland': '--lc-crop', 'Wetland': '--lc-wet', 'Other Land': '--lc-other', 'Open Water': '--lc-water' };
+  const colorOf = (c) => `var(${COVER_VAR[c] || '--muted'})`;
+  // Dated events drawn on the time-series charts (edit here if you add years).
+  const EVENTS = [
+    { y: 2003, label: 'Cedar fire', short: 'Cedar', kind: 'fire' },
+    { y: 2007, label: 'Witch fire', short: 'Witch', kind: 'fire' },
+    { y: 2010.5, label: 'Reclassification', short: 'Reclass.', kind: 'break' },
+  ];
+  const f1 = d3.format(',.1f');
+  const signed = (v) => (v > 0 ? '+' : '') + f1(v);
+  const state = { own: 'All', eco: 'All', hidden: new Set() };
+  let D = null; // derived data
+  let FIRST = 2001, LAST = 2022;
+
+  // ---------- data ----------
+  function derive(raw) {
+    const cover = new Map();
+    for (const r of raw) {
+      const Year = +r.Year;
+      for (const own of [r.Ownership, 'All']) for (const eco of [r.Ecoregion, 'All']) {
+        const k = own + '|' + eco + '|' + Year + '|' + r.LandCover;
+        let o = cover.get(k);
+        if (!o) { o = { own, eco, Year, LandCover: r.LandCover, Acreage: 0, BiomassC: 0, SoilC: 0, TotalC: 0 }; cover.set(k, o); }
+        o.Acreage += +r.Acreage; o.BiomassC += +r.BiomassC; o.SoilC += +r.SoilC; o.TotalC += +r.TotalC;
+      }
+    }
+    const coverRows = [...cover.values()];
+    const pool = new Map();
+    for (const r of coverRows) {
+      const k = r.own + '|' + r.eco + '|' + r.Year;
+      let o = pool.get(k);
+      if (!o) { o = { own: r.own, eco: r.eco, Year: r.Year, Acreage: 0, BiomassC: 0, SoilC: 0, TotalC: 0 }; pool.set(k, o); }
+      o.Acreage += r.Acreage; o.BiomassC += r.BiomassC; o.SoilC += r.SoilC; o.TotalC += r.TotalC;
+    }
+    return {
+      cover: coverRows,
+      pool: [...pool.values()],
+      owners: [...new Set(raw.map((r) => r.Ownership))].sort(),
+      ecos: [...new Set(raw.map((r) => r.Ecoregion))].sort(),
+    };
+  }
+
+  // ---------- tooltip ----------
+  const tipFor = (el) => {
+    let t = el.querySelector('.tip');
+    if (!t) { t = document.createElement('div'); t.className = 'tip'; t.hidden = true; el.appendChild(t); }
+    return t;
+  };
+  const showTip = (el, event, head, lines) => {
+    const t = tipFor(el);
+    const hd = document.createElement('div'); hd.className = 'hd'; hd.textContent = head;
+    t.replaceChildren(hd, ...lines.map((l) => {
+      const d = document.createElement('div'); d.className = 'ln';
+      if (l.color) { const s = document.createElement('span'); s.className = 'sw'; s.style.background = l.color; d.appendChild(s); }
+      const n = document.createElement('span'); n.textContent = l.name; d.appendChild(n);
+      const v = document.createElement('b'); v.textContent = l.value; d.appendChild(v);
+      return d;
+    }));
+    t.hidden = false;
+    const rect = el.getBoundingClientRect();
+    const px = event.clientX - rect.left, py = event.clientY - rect.top;
+    const W = el.clientWidth, tw = t.offsetWidth, th = t.offsetHeight;
+    let left = px + 14; if (left + tw > W) left = px - tw - 14; if (left < 0) left = 0;
+    let top = py - th / 2; if (top < 0) top = 0; if (top + th > el.clientHeight) top = Math.max(0, el.clientHeight - th);
+    t.style.left = left + 'px'; t.style.top = top + 'px';
+  };
+  const hideTip = (el) => { const t = el.querySelector('.tip'); if (t) t.hidden = true; };
+  const measure = (svg, texts, cls) => {
+    const g = svg.append('g'); let w = 0;
+    for (const s of texts) w = Math.max(w, g.append('text').attr('class', cls || null).text(s).node().getComputedTextLength());
+    g.remove(); return w;
+  };
+  const clearBox = (el) => { d3.select(el).selectAll('svg, .status').remove(); hideTip(el); };
+  const statusBox = (el, msg) => { clearBox(el); const s = document.createElement('div'); s.className = 'status'; s.textContent = msg; el.appendChild(s); };
+  const newSvg = (el, W, H) => d3.select(el).append('svg').attr('width', '100%').attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
+
+  // ---------- line chart ----------
+  function lineChart(el, { series, height, fmt, tipFmt, area }) {
+    clearBox(el);
+    const W = el.clientWidth;
+    if (!W) return;
+    if (!series.length) { statusBox(el, 'No change in this selection'); return; }
+    const svg = newSvg(el, W, height);
+    const vals = series.flatMap((s) => s.values.map((d) => d.y));
+    const y = d3.scaleLinear([Math.min(0, d3.min(vals)), Math.max(0, d3.max(vals))], [height - 26, 24]).nice();
+    const ticks = y.ticks(5);
+    const m = { l: measure(svg, ticks.map(fmt)) + 10, r: 14, t: 24, b: 26 };
+    const x = d3.scaleLinear([FIRST, LAST], [m.l, W - m.r]);
+    const narrow = W < 560;
+
+    for (const e of EVENTS) {
+      if (e.y < FIRST || e.y > LAST) continue;
+      if (e.kind === 'fire') {
+        svg.append('rect').attr('x', x(e.y - 0.5)).attr('width', x(e.y + 0.5) - x(e.y - 0.5)).attr('y', m.t).attr('height', height - m.b - m.t)
+          .style('fill', 'var(--fire)').attr('opacity', 0.1);
+      } else {
+        svg.append('line').attr('x1', x(e.y)).attr('x2', x(e.y)).attr('y1', m.t).attr('y2', height - m.b)
+          .style('stroke', 'var(--ref)').attr('stroke-dasharray', '4 3');
+      }
+      svg.append('text').attr('class', 'ev').attr('x', x(e.y)).attr('y', m.t - 8).attr('text-anchor', 'middle').text(narrow ? e.short : e.label);
+    }
+    for (const t of ticks) {
+      svg.append('line').attr('x1', m.l).attr('x2', W - m.r).attr('y1', y(t)).attr('y2', y(t)).style('stroke', t === 0 ? 'var(--axis)' : 'var(--grid)');
+      svg.append('text').attr('x', m.l - 8).attr('y', y(t)).attr('dy', '0.32em').attr('text-anchor', 'end').text(fmt(t));
+    }
+    const span = LAST - FIRST;
+    const step = Math.max(1, Math.round(span / 4));
+    const xt = d3.range(FIRST, LAST - step / 2, step).concat([LAST]);
+    for (const t of xt) {
+      svg.append('text').attr('x', x(t)).attr('y', height - 6).attr('text-anchor', t === FIRST ? 'start' : t === LAST ? 'end' : 'middle').text(String(t));
+    }
+    for (const s of series) {
+      if (area) svg.append('path').datum(s.values).style('fill', s.color).attr('fill-opacity', 0.12).attr('d', d3.area().x((d) => x(d.x)).y0(y(0)).y1((d) => y(d.y)));
+      svg.append('path').datum(s.values).style('fill', 'none').style('stroke', s.color).attr('stroke-width', 2)
+        .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round').attr('d', d3.line().x((d) => x(d.x)).y((d) => y(d.y)));
+    }
+    const rule = svg.append('line').attr('y1', m.t).attr('y2', height - m.b).style('stroke', 'var(--axis)').attr('opacity', 0);
+    const dots = svg.append('g');
+    svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', height - m.t - m.b).style('fill', 'transparent')
+      .on('pointermove', (event) => {
+        const [px] = d3.pointer(event);
+        const yr = Math.max(FIRST, Math.min(LAST, Math.round(x.invert(px))));
+        rule.attr('x1', x(yr)).attr('x2', x(yr)).attr('opacity', 1);
+        const pts = series.map((s) => ({ s, d: s.values.find((v) => v.x === yr) })).filter((p) => p.d);
+        dots.selectAll('circle').data(pts).join('circle').attr('r', 4).attr('cx', x(yr)).attr('cy', (p) => y(p.d.y)).style('fill', (p) => p.s.color);
+        pts.sort((a, b) => b.d.y - a.d.y);
+        showTip(el, event, String(yr), pts.map((p) => ({ color: series.length > 1 ? p.s.color : null, name: p.s.name, value: tipFmt(p.d.y) })));
+      })
+      .on('pointerleave', () => { rule.attr('opacity', 0); dots.selectAll('circle').remove(); hideTip(el); });
+  }
+
+  // ---------- horizontal rows (dumbbell / bars) ----------
+  function rowsFrame(el, rows, rightLabels) {
+    clearBox(el);
+    const W = el.clientWidth;
+    if (!W) return null;
+    if (!rows.length) { statusBox(el, 'No land in this selection'); return null; }
+    const rowH = 32, top = 8, bottom = 26, H = top + rows.length * rowH + bottom;
+    const svg = newSvg(el, W, H);
+    const lw = measure(svg, rows.map((r) => r.LandCover), 'lbl') + 12;
+    const rw = measure(svg, rightLabels) + 12;
+    return { svg, W, H, rowH, top, bottom, lw, rw };
+  }
+  function xGrid(f, x) {
+    for (const t of x.ticks(f.W < 420 ? 3 : 5)) {
+      f.svg.append('line').attr('x1', x(t)).attr('x2', x(t)).attr('y1', f.top).attr('y2', f.H - f.bottom).style('stroke', 'var(--grid)');
+      f.svg.append('text').attr('x', x(t)).attr('y', f.H - 6).attr('text-anchor', 'middle').text(d3.format(',')(t));
+    }
+  }
+  function dumbbell(el, rows) {
+    const f = rowsFrame(el, rows, rows.map((r) => signed(r.b - r.a)));
+    if (!f) return;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => Math.max(r.a, r.b))], [f.lw, f.W - f.rw]).nice();
+    xGrid(f, x);
+    rows.forEach((r, i) => {
+      const cy = f.top + i * f.rowH + f.rowH / 2, d = r.b - r.a;
+      f.svg.append('text').attr('class', 'lbl').attr('x', 0).attr('y', cy).attr('dy', '0.32em').text(r.LandCover);
+      f.svg.append('line').attr('x1', x(r.a)).attr('x2', x(r.b)).attr('y1', cy).attr('y2', cy).style('stroke', 'var(--axis)').attr('stroke-width', 2).attr('stroke-linecap', 'round');
+      f.svg.append('circle').attr('cx', x(r.a)).attr('cy', cy).attr('r', 4.5).style('fill', 'var(--axis)');
+      f.svg.append('circle').attr('cx', x(r.b)).attr('cy', cy).attr('r', 5.5).style('fill', colorOf(r.LandCover));
+      f.svg.append('text').attr('x', f.W).attr('y', cy).attr('dy', '0.32em').attr('text-anchor', 'end')
+        .style('fill', Math.abs(d) < 0.05 ? 'var(--muted)' : d > 0 ? 'var(--ok)' : 'var(--bad)').text(signed(d));
+      f.svg.append('rect').attr('x', 0).attr('y', cy - f.rowH / 2).attr('width', f.W).attr('height', f.rowH).style('fill', 'transparent')
+        .on('pointermove', (event) => showTip(el, event, r.LandCover, [
+          { name: String(FIRST), value: f1(r.a) + ' M MT C' }, { name: String(LAST), value: f1(r.b) + ' M MT C' }, { name: 'Change', value: signed(d) },
+        ]))
+        .on('pointerleave', () => hideTip(el));
+    });
+  }
+  function densityBars(el, rows) {
+    const f = rowsFrame(el, rows, rows.map((r) => f1(r.perAcre)));
+    if (!f) return;
+    const x = d3.scaleLinear([0, d3.max(rows, (r) => r.perAcre)], [f.lw, f.W - f.rw]).nice();
+    xGrid(f, x);
+    rows.forEach((r, i) => {
+      const cy = f.top + i * f.rowH + f.rowH / 2, bw = Math.max(1, x(r.perAcre) - x(0));
+      f.svg.append('text').attr('class', 'lbl').attr('x', 0).attr('y', cy).attr('dy', '0.32em').text(r.LandCover);
+      f.svg.append('rect').attr('x', x(0)).attr('y', cy - 9).attr('width', bw).attr('height', 18).attr('rx', 4).style('fill', colorOf(r.LandCover));
+      f.svg.append('text').attr('x', x(0) + bw + 6).attr('y', cy).attr('dy', '0.32em').text(f1(r.perAcre));
+      f.svg.append('rect').attr('x', 0).attr('y', cy - f.rowH / 2).attr('width', f.W).attr('height', f.rowH).style('fill', 'transparent')
+        .on('pointermove', (event) => showTip(el, event, `${r.LandCover}, ${LAST}`, [
+          { name: 'Carbon per acre', value: f1(r.perAcre) + ' MT C' },
+          { name: 'Area', value: d3.format(',.0f')(r.acres) + ' acres' },
+          { name: 'Total carbon', value: f1(r.b) + ' M MT C' },
+        ]))
+        .on('pointerleave', () => hideTip(el));
+    });
+  }
+
+  // ---------- render ----------
+  const $ = (id) => document.getElementById(id);
+  function render() {
+    if (!D) return;
+    const { own, eco } = state;
+    $('f-own').value = own; $('f-eco').value = eco;
+
+    const pool = D.pool.filter((r) => r.own === own && r.eco === eco).sort((a, b) => a.Year - b.Year);
+    const p0 = pool.find((r) => r.Year === FIRST), p1 = pool.find((r) => r.Year === LAST);
+    const metric = (k) => {
+      if (!p0 || !p1) return null;
+      const [col, div] = { Total: ['TotalC', 1e6], Biomass: ['BiomassC', 1e6], Soil: ['SoilC', 1e6], Area: ['Acreage', 1e3] }[k];
+      return { a: p0[col] / div, b: p1[col] / div };
+    };
+    document.querySelectorAll('.tiles [data-k]').forEach((el) => {
+      const m = metric(el.dataset.k);
+      el.classList.remove('up', 'down');
+      if (!m) { el.textContent = '—'; return; }
+      if (el.dataset.chg) {
+        const d = m.b - m.a;
+        el.textContent = signed(d);
+        if (!el.dataset.neutral && Math.abs(d) >= 0.05) el.classList.add(d > 0 ? 'up' : 'down');
+      } else el.textContent = f1(m.b);
+    });
+    const t = metric('Total'), b = metric('Biomass'), s = metric('Soil');
+    const take = $('take');
+    if (t) {
+      const num = (v) => { const n = document.createElement('span'); n.className = 'num'; n.textContent = v; return n; };
+      take.replaceChildren('Total land carbon went from ', num(f1(t.a)), ' to ', num(f1(t.b)),
+        ` million MT C between ${FIRST} and ${LAST}. Of the change, soil carbon accounts for `, num(signed(s.b - s.a)),
+        ' and live biomass for ', num(signed(b.b - b.a)), '. Biomass carries the wildfire signal; soil carbon swings more from year to year.');
+    } else take.textContent = 'No land in this selection.';
+
+    // chart 1
+    const rows = D.cover.filter((r) => r.own === own && r.eco === eco);
+    const byCover = d3.group(rows, (r) => r.LandCover);
+    const all = COVERS.filter((c) => byCover.has(c)).map((c) => {
+      const ys = new Map(byCover.get(c).map((r) => [r.Year, r.Acreage]));
+      const base = ys.get(FIRST) || 0;
+      return { name: c, color: colorOf(c), values: d3.range(FIRST, LAST + 1).map((yr) => ({ x: yr, y: ((ys.get(yr) || 0) - base) / 1000 })) };
+    }).filter((s) => s.values.some((v) => Math.abs(v.y) >= 0.05));
+    $('legend').replaceChildren(...all.map((s) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('aria-pressed', state.hidden.has(s.name) ? 'false' : 'true');
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = s.color;
+      const tx = document.createElement('span'); tx.textContent = s.name;
+      btn.append(sw, tx);
+      btn.addEventListener('click', () => { state.hidden.has(s.name) ? state.hidden.delete(s.name) : state.hidden.add(s.name); render(); });
+      return btn;
+    }));
+    lineChart($('c1'), {
+      series: all.filter((s) => !state.hidden.has(s.name)), height: 340,
+      fmt: (v) => (v > 0 ? '+' : '') + d3.format(',')(v) + 'k',
+      tipFmt: (v) => (v > 0 ? '+' : '') + f1(v) + 'k acres',
+    });
+
+    // chart 2
+    const mk = (col) => pool.map((r) => ({ x: r.Year, y: r[col] / 1e6 }));
+    const fmt = (v) => d3.format(',')(v), tipFmt = (v) => f1(v) + ' M MT C';
+    lineChart($('c2a'), { series: pool.length ? [{ name: 'Biomass carbon', color: 'var(--lc-forest)', values: mk('BiomassC') }] : [], height: 230, fmt, tipFmt, area: true });
+    lineChart($('c2b'), { series: pool.length ? [{ name: 'Soil carbon', color: 'var(--soil)', values: mk('SoilC') }] : [], height: 230, fmt, tipFmt, area: true });
+
+    // charts 3 and 4
+    const cmp = COVERS.filter((c) => byCover.has(c)).map((c) => {
+      const g = byCover.get(c);
+      const r0 = g.find((r) => r.Year === FIRST), r1 = g.find((r) => r.Year === LAST);
+      const acres = r1 ? r1.Acreage : 0, bb = r1 ? r1.TotalC / 1e6 : 0;
+      return { LandCover: c, a: r0 ? r0.TotalC / 1e6 : 0, b: bb, acres, perAcre: acres > 0 ? (bb * 1e6) / acres : null };
+    }).filter((r) => r.a > 0.0005 || r.b > 0.0005);
+    dumbbell($('c3'), cmp.slice().sort((p, q) => q.b - p.b));
+    densityBars($('c4'), cmp.filter((r) => r.perAcre != null && r.acres >= 1).sort((p, q) => q.perAcre - p.perAcre));
+  }
+
+  // ---------- controls ----------
+  const fill = (sel, opts, allLabel) => sel.replaceChildren(new Option(allLabel, 'All'), ...opts.map((o) => new Option(o === 'UNDEFINED' ? 'Undefined' : o, o)));
+  $('f-own').addEventListener('change', (e) => { state.own = e.target.value; render(); });
+  $('f-eco').addEventListener('change', (e) => { state.eco = e.target.value; render(); });
+  $('f-reset').addEventListener('click', () => { state.own = 'All'; state.eco = 'All'; state.hidden.clear(); render(); });
+
+  let lastW = 0, timer = null;
+  new ResizeObserver(() => {
+    const w = document.querySelector('.wrap').clientWidth;
+    if (w === lastW) return; lastW = w;
+    clearTimeout(timer); timer = setTimeout(render, 120);
+  }).observe(document.querySelector('.wrap'));
+
+  // ---------- load ----------
+  const charts = ['c1', 'c2a', 'c2b', 'c3', 'c4'];
+  charts.forEach((id) => statusBox($(id), 'Loading…'));
+  Promise.all([
+    fetch('data/nwl_extract.csv').then((r) => { if (!r.ok) throw new Error('data/nwl_extract.csv: HTTP ' + r.status); return r.text(); }),
+    fetch('data/meta.json').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  ]).then(([csv, meta]) => {
+    const raw = d3.csvParse(csv);
+    const years = raw.map((r) => +r.Year);
+    FIRST = d3.min(years); LAST = d3.max(years);
+    document.querySelectorAll('.yr-first').forEach((el) => { el.textContent = FIRST; });
+    document.querySelectorAll('.yr-last').forEach((el) => { el.textContent = LAST; });
+    if (meta && meta.county) { $('county-name').textContent = meta.county; document.title = `${meta.county} Land Carbon`; }
+    if (meta && meta.built) $('footer').append(` Extract built ${meta.built} from ${meta.source_file}.`);
+    D = derive(raw);
+    fill($('f-own'), D.owners, 'All ownership');
+    fill($('f-eco'), D.ecos, 'All ecoregions');
+    render();
+  }).catch((err) => {
+    console.error(err);
+    $('take').textContent = 'The data file did not load. If you opened this file directly from your computer, run a local server instead (see README).';
+    charts.forEach((id) => statusBox($(id), 'Failed to load'));
+  });
+})();
+</script>
+</body>
+</html>
